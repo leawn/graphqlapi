@@ -132,40 +132,61 @@ class Feed extends Component {
     formData.append('title', postData.title);
     formData.append('content', postData.content);
     formData.append('image', postData.image);
-    let url = 'http://localhost:8080/feed/post';
+    /*let url = 'http://localhost:8080/feed/post';
     let method = 'POST';
     if (this.state.editPost) {
       url = `http://localhost:8080/feed/post/${this.state.editPost._id}`;
       method = 'PUT';
+    }*/
+    let graphqlQuery = {
+      query: `
+        mutation {
+          createPost(postInput: {title: "${postData.title}", content: "${postData.content}", imageUrl: "some url"}) {
+            _id
+            title
+            content
+            imageUrl
+            creator {
+              name
+            }
+            createdAt
+          }
+        }
+      `
     }
 
-    fetch(url, {
-      method: method,
+
+    fetch('http://localhost:8080/graphql', {
+      method: 'POST',
       /*headers: {
         'Content-Type': 'application/json'
       },*/
-      body: formData,
+      body: JSON.stringify(graphqlQuery),
           /*JSON.stringify({
           title: postData.title,
           content: postData.content
       })*/
       headers: {
-        'Authorization': `Bearer ${this.props.token}`
+        'Authorization': `Bearer ${this.props.token}`,
+        'Content-Type': 'application/json'
       }
     })
       .then(res => {
-        if (res.status !== 200 && res.status !== 201) {
-          throw new Error('Creating or editing a post failed!');
-        }
         return res.json();
       })
       .then(resData => {
+        if (resData.errors && resData.errors[0].status === 422) {
+          throw new Error('Validation failed. Make sure the email is valid');
+        }
+        if (resData.errors) {
+          throw new Error('User login failed');
+        }
         const post = {
-          _id: resData.post._id,
-          title: resData.post.title,
-          content: resData.post.content,
-          creator: resData.post.creator,
-          createdAt: resData.post.createdAt
+          _id: resData.data.createPost._id, //refactor
+          title: resData.post.data.createPost.title,
+          content: resData.post.data.createPost.content,
+          creator: resData.post.data.createPost.creator,
+          createdAt: resData.post.data.createPost.createdAt
         };
         this.setState(prevState => {
           /*let updatedPosts = [...prevState.posts];
